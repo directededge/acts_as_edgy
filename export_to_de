@@ -150,9 +150,7 @@ module DirectedEdge
             if from != record.from_id && !links.empty?
               item = DirectedEdge::Item.new(exporter.database, "#{from_name}_#{record.from_id}")
               item.add_tag(from_name)
-              links.each do |link|
-                item.link_to("#{to_name}_#{link}", 0, @edgy_names[i])
-              end
+              links.each { |link| item.link_to("#{to_name}_#{link}", 0, @edgy_names[i]) }
               exporter.export(item)
               links.clear
             end
