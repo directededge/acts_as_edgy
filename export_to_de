@@ -4,30 +4,24 @@ require 'pp'
 require 'config/environment'
 require 'acts_as_edgy'
 
-DirectedEdge::Edgy.edgy_database = DirectedEdge::Database.new('testdb', 'test')
+DirectedEdge::Edgy.database = DirectedEdge::Database.new('testdb', 'test')
 
 AUTOBUILD = false
 
-if AUTOBUILD
-  class User
-    acts_as_edgy(:purchase, Order, LineItem, Variant, Product)
-  end
-else
-  class User
-    acts_as_edgy(:purchase,
-                 DirectedEdge::Bridge.new(Order, :user_id, :id),
-                 DirectedEdge::Bridge.new(LineItem, :order_id, :variant_id),
-                 DirectedEdge::Bridge.new(Variant, :id, :product_id),
-                 Product)
-  end
+class User
+  acts_as_edgy(:purchase, Order, LineItem, Variant, Product)
 end
 
-def test_export_to_file
-  User.edgy_export(DirectedEdge::Exporter.new('export.xml')).finish
-end
+#class User
+#  acts_as_edgy(:purchase,
+#               DirectedEdge::Bridge.new(Order, :user_id, :id),
+#               DirectedEdge::Bridge.new(LineItem, :order_id, :variant_id),
+#               DirectedEdge::Bridge.new(Variant, :id, :product_id),
+#               Product)
+#end
 
-def test_export_to_webservice
-  User.edgy_export(DirectedEdge::Exporter.new(DirectedEdge::Edgy.edgy_database)).finish
+def test_export
+  DirectedEdge::Edgy.export
 end
 
 def test_related_products
@@ -48,6 +42,6 @@ def test_recommended_products
   puts
 end
 
-test_export_to_file
+test_export
 test_related_products
 test_recommended_products

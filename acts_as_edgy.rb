@@ -4,19 +4,38 @@ require 'active_record'
 
 module DirectedEdge
   module Edgy
+    class << self
+      attr_accessor :database, :models
+    end
+
     def self.included(base)
       base.send :include, Utilities
       base.send :extend, ClassMethods
     end
 
-    class << self
-      attr_accessor :edgy_database
+    def self.export
+      throw "No acts_as_edgy models in use." if @models.blank?
+      throw "Database not set." unless Edgy.database
+
+      file = "#{Rails.root}/tmp/edgy_export.xml"
+      exporter = DirectedEdge::Exporter.new(file)
+      @models.each { |m| m.edgy_export(exporter) }
+      exporter.finish
+
+      self.clear
+      Edgy.database.import(file)
+    end
+
+    def self.clear
+      empty = "#{Rails.root}/tmp/edgy_empty.xml"
+      DirectedEdge::Exporter.new(empty).finish unless File.exists? empty
+      Edgy.database.import(empty)
     end
 
     def edgy_related(options = {})
       item_type = self.class.name.underscore
       tags = options.delete(:tags) || Set.new([ item_type ])
-      item = DirectedEdge::Item.new(Edgy.edgy_database, "#{item_type}_#{id}")
+      item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
       edgy_records(item.related(tags, options))
     end
 
@@ -27,7 +46,7 @@ module DirectedEdge
         tags = Set.new
         self.class.edgy_connections.each { |c| tags.add(c.to_class.name.underscore) }
       end
-      item = DirectedEdge::Item.new(Edgy.edgy_database, "#{item_type}_#{id}")
+      item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
       edgy_records(item.recommended(tags, options))
     end
 
@@ -67,6 +86,9 @@ module DirectedEdge
         @edgy_names ||= []
         @edgy_connections ||= []
         @edgy_names.push(name)
+
+        Edgy.models ||= Set.new
+        Edgy.models.add(self)
 
         if bridges.first.is_a? Bridge
           to_class =
