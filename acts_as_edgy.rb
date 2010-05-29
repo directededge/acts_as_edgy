@@ -1,4 +1,6 @@
 require 'directed_edge'
+require 'active_support'
+require 'active_record'
 
 module DirectedEdge
   class Bridge
@@ -69,18 +71,18 @@ module DirectedEdge
     end
 
     def edgy_related(options = {})
-      item_type = edgy_item_name
+      item_type = self.class.name.underscore
       tags = options.delete(:tags) || Set.new([ item_type ])
       item = DirectedEdge::Item.new(Edgy.edgy_database, "#{item_type}_#{id}")
       edgy_records(item.related(tags, options))
     end
 
     def edgy_recommended(options = {})
-      item_type = edgy_item_name
+      item_type = self.class.name.underscore
       tags = options.delete(:tags)
       unless tags
         tags = Set.new
-        self.class.edgy_connections.each { |c| tags.add(edgy_item_name(c.to_class)) }
+        self.class.edgy_connections.each { |c| tags.add(c.to_class.name.underscore) }
       end
       item = DirectedEdge::Item.new(Edgy.edgy_database, "#{item_type}_#{id}")
       edgy_records(item.recommended(tags, options))
@@ -98,18 +100,14 @@ module DirectedEdge
         first_name = edgy_name(ids.first)
         record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
         if same_names
-          edgy_class(first_name).find(record_ids)
+          first_name.classify.constantize.find(record_ids)
         else
           ids.map { |i| edgy_record(i) }
         end
       end
 
       def edgy_record(item_id)
-        edgy_class(edgy_name(item_id)).find(edgy_id(item_id))
-      end
-
-      def edgy_class(item_name)
-        Kernel.const_get(item_name.capitalize.gsub(/_(.)/) { |s| $1.upcase })
+        edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
       end
 
       def edgy_name(item_id)
@@ -120,18 +118,14 @@ module DirectedEdge
         item_id.sub(/.*_/, '')
       end
 
-      def edgy_item_name(klass = self.class)
-        klass.name.gsub(/[A-Z]/) { |s| '_' + s.downcase }.sub(/^_/, '')
-      end
-
       def edgy_find_method(in_class, referring_to)
-        method = 'id'
-        if in_class.column_names.include? "#{referring_to.table_name}_id"
-          method = "#{referring_to.table_name}_id"
-        elsif in_class.column_names.include? "#{edgy_item_name(referring_to)}_id"
-          method = "#{edgy_item_name(referring_to)}_id"
+        if in_class.column_names.include? referring_to.name.foreign_key
+          referring_to.name.foreign_key
+        elsif in_class.column_names.include? referring_to.name.foreign_key
+          referring_to.name.foreign_key
+        else
+          'id'
         end
-        method
       end
 
       def edgy_build_connection(*classes)
@@ -163,7 +157,7 @@ module DirectedEdge
             unless bridges.last.is_a? Bridge
               bridges.pop
             else
-              edgy_class(edgy_name(bridges.last.to_column.to_s))
+              edgy_name(bridges.last.to_column.to_s).classify.constantize
             end
           @edgy_connections.push(Connection.new(self, to_class, *bridges))
         else
@@ -175,8 +169,8 @@ module DirectedEdge
         raise "Model not initialized with acts_as_edgy" unless @edgy_connections
         (0..@edgy_connections.size - 1).each do |i|
           connection = @edgy_connections[i]
-          from_name = edgy_item_name(connection.from_class)
-          to_name = edgy_item_name(connection.to_class)
+          from_name = connection.from_class.name.underscore
+          to_name = connection.to_class.name.underscore
 
           from = nil
           links = Set.new
