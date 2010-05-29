@@ -3,63 +3,6 @@ require 'active_support'
 require 'active_record'
 
 module DirectedEdge
-  class Bridge
-    attr_reader :klass, :from_column, :to_column
-    def initialize(klass, from_column, to_column)
-      @klass = klass
-      @from_column = from_column
-      @to_column = to_column
-    end
-  end
-
-  private
-
-  class Connection
-    attr_accessor :from_class, :to_class
-
-    def initialize(from_class, to_class, *bridges)
-      @from_class = from_class
-      @to_class = to_class
-      @bridges = bridges
-    end
-
-    def sql_for_single(from_id)
-      what = "#{@to_class.table_name}.id"
-      from = "#{@to_class.table_name}"
-      where = from_id.to_s
-
-      @bridges.each do |bridge|
-        from << ", #{bridge.klass.table_name}"
-        where << " = #{bridge.klass.table_name}.#{bridge.from_column}"
-        where << " and #{bridge.klass.table_name}.#{bridge.to_column}"
-      end
-
-      where << " = #{@to_class.table_name}.id"
-      "select #{what} from #{from} where #{where};"
-    end
-
-    def sql_for_export
-      first = @bridges.first
-      last = @bridges.last
-
-      what = "#{first.klass.table_name}.#{first.from_column} as from_id, "
-      what << "#{last.klass.table_name}.#{last.to_column} as to_id"
-
-      from = ""
-      where = ""
-
-      @bridges.each do |bridge|
-        from << ", " unless bridge == first
-        from << bridge.klass.table_name
-        where << " = #{bridge.klass.table_name}.#{bridge.from_column}" unless bridge == first
-        where << " and " unless (bridge == first || bridge == last)
-        where << "#{bridge.klass.table_name}.#{bridge.to_column}" unless bridge == last
-      end
-
-      "select #{what} from #{from} where #{where} order by from_id;"
-    end
-  end
-
   module Edgy
     def self.included(base)
       base.send :include, Utilities
@@ -111,7 +54,6 @@ module DirectedEdge
       def edgy_name(item_id)
         item_id.sub(/_.*/, '')
       end
-
       def edgy_id(item_id)
         item_id.sub(/.*_/, '')
       end
@@ -197,6 +139,63 @@ module DirectedEdge
         end
         Connection.new(first, classes.last, *bridges)
       end
+    end
+  end
+
+  class Bridge
+    attr_reader :klass, :from_column, :to_column
+    def initialize(klass, from_column, to_column)
+      @klass = klass
+      @from_column = from_column
+      @to_column = to_column
+    end
+  end
+
+  private
+
+  class Connection
+    attr_accessor :from_class, :to_class
+
+    def initialize(from_class, to_class, *bridges)
+      @from_class = from_class
+      @to_class = to_class
+      @bridges = bridges
+    end
+
+    def sql_for_single(from_id)
+      what = "#{@to_class.table_name}.id"
+      from = "#{@to_class.table_name}"
+      where = from_id.to_s
+
+      @bridges.each do |bridge|
+        from << ", #{bridge.klass.table_name}"
+        where << " = #{bridge.klass.table_name}.#{bridge.from_column}"
+        where << " and #{bridge.klass.table_name}.#{bridge.to_column}"
+      end
+
+      where << " = #{@to_class.table_name}.id"
+      "select #{what} from #{from} where #{where};"
+    end
+
+    def sql_for_export
+      first = @bridges.first
+      last = @bridges.last
+
+      what = "#{first.klass.table_name}.#{first.from_column} as from_id, "
+      what << "#{last.klass.table_name}.#{last.to_column} as to_id"
+
+      from = ""
+      where = ""
+
+      @bridges.each do |bridge|
+        from << ", " unless bridge == first
+        from << bridge.klass.table_name
+        where << " = #{bridge.klass.table_name}.#{bridge.from_column}" unless bridge == first
+        where << " and " unless (bridge == first || bridge == last)
+        where << "#{bridge.klass.table_name}.#{bridge.to_column}" unless bridge == last
+      end
+
+      "select #{what} from #{from} where #{where} order by from_id;"
     end
   end
 end
