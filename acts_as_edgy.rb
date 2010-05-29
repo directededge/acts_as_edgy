@@ -90,56 +90,30 @@ module DirectedEdge
 
     private
 
+    def edgy_records(ids)
+      return [] if ids.empty?
+      same_names = true
+      first_name = edgy_name(ids.first)
+      record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
+      if same_names
+        first_name.classify.constantize.find(record_ids)
+      else
+        ids.map { |i| edgy_record(i) }
+      end
+    end
+
+    def edgy_record(item_id)
+      edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
+    end
+
     module Utilities
-
       private
-
-      def edgy_records(ids)
-        return [] if ids.empty?
-        same_names = true
-        first_name = edgy_name(ids.first)
-        record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
-        if same_names
-          first_name.classify.constantize.find(record_ids)
-        else
-          ids.map { |i| edgy_record(i) }
-        end
-      end
-
-      def edgy_record(item_id)
-        edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
-      end
-
       def edgy_name(item_id)
         item_id.sub(/_.*/, '')
       end
 
       def edgy_id(item_id)
         item_id.sub(/.*_/, '')
-      end
-
-      def edgy_find_method(in_class, referring_to)
-        if in_class.column_names.include? referring_to.name.foreign_key
-          referring_to.name.foreign_key
-        elsif in_class.column_names.include? referring_to.name.foreign_key
-          referring_to.name.foreign_key
-        else
-          'id'
-        end
-      end
-
-      def edgy_build_connection(*classes)
-        raise "There must be at least three classes in an edgy path." if classes.size < 3
-        bridges = []
-        first = previous = classes.shift
-        while classes.size > 1
-          current = classes.shift
-          bridges.push(Bridge.new(current,
-                                  edgy_find_method(current, previous),
-                                  edgy_find_method(current, classes.first)))
-          previous = current
-        end
-        Connection.new(first, classes.last, *bridges)
       end
     end
 
@@ -196,6 +170,32 @@ module DirectedEdge
           end
         end
         exporter
+      end
+
+      private
+
+      def edgy_find_method(in_class, referring_to)
+        if in_class.column_names.include? referring_to.name.foreign_key
+          referring_to.name.foreign_key
+        elsif in_class.column_names.include? referring_to.name.foreign_key
+          referring_to.name.foreign_key
+        else
+          'id'
+        end
+      end
+
+      def edgy_build_connection(*classes)
+        raise "There must be at least three classes in an edgy path." if classes.size < 3
+        bridges = []
+        first = previous = classes.shift
+        while classes.size > 1
+          current = classes.shift
+          bridges.push(Bridge.new(current,
+                                  edgy_find_method(current, previous),
+                                  edgy_find_method(current, classes.first)))
+          previous = current
+        end
+        Connection.new(first, classes.last, *bridges)
       end
     end
   end
