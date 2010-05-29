@@ -114,18 +114,22 @@ module DirectedEdge
           links = Set.new
           to_ids = Set.new
 
+          export = lambda do
+            item = DirectedEdge::Item.new(exporter.database, "#{from_name}_#{from}")
+            item.add_tag(from_name)
+            links.each { |link| item.link_to("#{to_name}_#{link}", 0, @edgy_names[i]) }
+            exporter.export(item)
+            links.clear
+          end
+
           find_by_sql(connection.sql_for_export).each do |record|
-            if from != record.from_id && !links.empty?
-              item = DirectedEdge::Item.new(exporter.database, "#{from_name}_#{record.from_id}")
-              item.add_tag(from_name)
-              links.each { |link| item.link_to("#{to_name}_#{link}", 0, @edgy_names[i]) }
-              exporter.export(item)
-              links.clear
-            end
+            export.call unless from == record.from_id || links.empty?
             from = record.from_id
             links.add(record.to_id)
             to_ids.add(record.to_id)
           end
+
+          export.call unless links.empty?
 
           to_ids.each do |id|
             item = DirectedEdge::Item.new(exporter.database, "#{to_name}_#{id}")
