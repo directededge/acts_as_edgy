@@ -116,33 +116,33 @@ module DirectedEdge
         raise "Model not initialized with acts_as_edgy" unless @edgy_routes
 
         @edgy_routes.each do |name, connection|
-          from_name = connection.from_class.name.underscore
-          to_name = connection.to_class.name.underscore
+          from_type = connection.from_class.name.underscore
+          to_type = connection.to_class.name.underscore
 
-          from = nil
-          links = Set.new
+          from_id = nil
+          link_ids = Set.new
           to_ids = Set.new
 
           export = lambda do
-            item = DirectedEdge::Item.new(exporter.database, "#{from_name}_#{from}")
-            item.add_tag(from_name)
-            links.each { |link| item.link_to("#{to_name}_#{link}", 0, name) }
+            item = DirectedEdge::Item.new(exporter.database, "#{from_type}_#{from_id}")
+            item.add_tag(from_type)
+            link_ids.each { |link| item.link_to("#{to_type}_#{link}", 0, name) }
             exporter.export(item)
-            links.clear
+            link_ids.clear
           end
 
           find_by_sql(connection.sql_for_export).each do |record|
-            export.call unless from == record.from_id || links.empty?
-            from = record.from_id
-            links.add(record.to_id)
+            export.call unless from_id == record.from_id || link_ids.empty?
+            from_id = record.from_id
+            link_ids.add(record.to_id)
             to_ids.add(record.to_id)
           end
 
-          export.call unless links.empty?
+          export.call unless link_ids.empty?
 
           to_ids.each do |id|
-            item = DirectedEdge::Item.new(exporter.database, "#{to_name}_#{id}")
-            item.add_tag(to_name)
+            item = DirectedEdge::Item.new(exporter.database, "#{to_type}_#{id}")
+            item.add_tag(to_type)
             exporter.export(item)
           end
         end
