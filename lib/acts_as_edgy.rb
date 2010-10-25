@@ -4,8 +4,20 @@ require 'active_record'
 
 module DirectedEdge
   module Edgy
+    class Configuration
+      include Singleton
+      attr_accessor :user, :password
+    end
+
     class << self
       attr_accessor :database, :models
+    end
+
+    def self.configure(&block)
+      config = Configuration.instance
+      block.call(config)
+      raise "user= and password= must be set in config block" unless config.user && config.password
+      Edgy.database = DirectedEdge::Database.new(config.user, config.password)
     end
 
     def self.included(base)
