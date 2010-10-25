@@ -214,12 +214,12 @@ module DirectedEdge
       first = @bridges.first
       last = @bridges.last
 
-      what = "#{first.klass.table_name}.#{first.from_column} as from_id, "
-      what << "#{last.klass.table_name}.#{last.to_column} as to_id"
+      from_column = "#{first.klass.table_name}.#{first.from_column}"
+      to_column = "#{last.klass.table_name}.#{last.to_column}"
 
+      what = "#{from_column} as from_id, #{to_column} as to_id"
       from = ""
-      where = "#{first.klass.table_name}.#{first.from_column} is not null and "
-      where << "#{last.klass.table_name}.#{last.to_column} is not null and "
+      where = "#{from_column} is not null and #{to_column} is not null and "
 
       @bridges.each do |bridge|
         from << ", " unless bridge == first
