@@ -218,7 +218,8 @@ module DirectedEdge
       what << "#{last.klass.table_name}.#{last.to_column} as to_id"
 
       from = ""
-      where = ""
+      where = "#{first.klass.table_name}.#{first.from_column} is not null and "
+      where << "#{last.klass.table_name}.#{last.to_column} is not null and "
 
       @bridges.each do |bridge|
         from << ", " unless bridge == first
