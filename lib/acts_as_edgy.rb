@@ -145,8 +145,6 @@ module DirectedEdge
       def edgy_find_method(in_class, referring_to)
         if in_class.column_names.include? referring_to.name.foreign_key
           referring_to.name.foreign_key
-        elsif in_class.column_names.include? referring_to.name.foreign_key
-          referring_to.name.foreign_key
         else
           'id'
         end
