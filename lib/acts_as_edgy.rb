@@ -95,10 +95,7 @@ module DirectedEdge
       attr_reader :edgy_connections
 
       def acts_as_edgy(name, *bridges)
-        @edgy_names ||= []
-        @edgy_connections ||= []
-        @edgy_names.push(name)
-
+        @edgy_routes ||= {}
         Edgy.models ||= Set.new
         Edgy.models.add(self)
 
@@ -109,16 +106,16 @@ module DirectedEdge
             else
               edgy_name(bridges.last.to_column.to_s).classify.constantize
             end
-          @edgy_connections.push(Connection.new(self, to_class, *bridges))
+          @edgy_routes[name] = Connection.new(self, to_class, *bridges)
         else
-          @edgy_connections.push(edgy_build_connection(self, *bridges));
+          @edgy_routes[name] = edgy_build_connection(self, *bridges)
         end
       end
 
       def edgy_export(exporter)
-        raise "Model not initialized with acts_as_edgy" unless @edgy_connections
-        (0..@edgy_connections.size - 1).each do |i|
-          connection = @edgy_connections[i]
+        raise "Model not initialized with acts_as_edgy" unless @edgy_routes
+
+        @edgy_routes.each do |name, connection|
           from_name = connection.from_class.name.underscore
           to_name = connection.to_class.name.underscore
 
@@ -129,7 +126,7 @@ module DirectedEdge
           export = lambda do
             item = DirectedEdge::Item.new(exporter.database, "#{from_name}_#{from}")
             item.add_tag(from_name)
-            links.each { |link| item.link_to("#{to_name}_#{link}", 0, @edgy_names[i]) }
+            links.each { |link| item.link_to("#{to_name}_#{link}", 0, name) }
             exporter.export(item)
             links.clear
           end
