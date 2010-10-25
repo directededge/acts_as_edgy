@@ -4,17 +4,9 @@ namespace :edgy do
   desc "Imports your site's data to your Directed Edge account."
   task :export, :user, :password, :needs => :environment do |t, args|
 
-    unless args[:user] && args[:password]
-      puts "You must pass the Directed Edge account name and password as arguments."
-      puts "e.g. rake edgy:export[testdb,testpass]"
+    unless DirectedEdge::Edgy::database
+      puts "acts_as_edgy has not yet been configured, check config/initializers/edgy.rb"
       exit
-    end
-
-    # DirectedEdge::Edgy.database = DirectedEdge::Database.new(args[:user], args[:password])
-
-    DirectedEdge::Edgy.configure do |config|
-      config.user = args[:user]
-      config.password = args[:password]
     end
 
     # Force all models to be loaded
