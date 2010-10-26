@@ -17,4 +17,27 @@ namespace :edgy do
 
     DirectedEdge::Edgy.export
   end
+
+  desc "Sets the credentials for your Directed Edge account."
+  task :configure do
+    path = "#{Rails.root}/config/initializers/edgy.rb"
+
+    if File.exists?(path)
+      puts "Overwrite existing configuration? [Y/n]"
+      overwrite = STDIN.gets.chomp
+      exit unless overwrite.empty? || overwrite[0, 1].upcase == 'Y'
+    end
+
+    puts "Directed Edge user name:"
+    user = STDIN.gets.chomp
+    puts "Directed Edge password:"
+    password = STDIN.gets.chomp
+
+    file = File.new(path, 'w')
+    file.write("DirectedEdge::Edgy.configure do |config|\n")
+    file.write("  config.user = '#{user}'\n")
+    file.write("  config.password = '#{password}'\n")
+    file.write("end\n");
+    file.close
+  end
 end
