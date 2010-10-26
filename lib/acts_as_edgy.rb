@@ -248,6 +248,27 @@ module DirectedEdge
       "select #{what} from #{from} where #{where} order by from_id"
     end
   end
+
+  class Future
+    def initialize(&finalize)
+      @future = Thread.new(&finalize)
+    end
+
+    def method_missing(method, *args)
+      data.send(method, *args)
+    end
+
+    def to_s
+      data.to_s
+    end
+    
+    private
+
+    def data
+      @data ||= @future.value
+    end
+  end
+
 end
 
 ActiveRecord::Base.send :include, DirectedEdge::Edgy
