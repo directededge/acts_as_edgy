@@ -1,6 +1,7 @@
 require 'directed_edge'
 require 'active_support'
 require 'active_record'
+require 'will_paginate'
 
 module DirectedEdge
   module Edgy
@@ -131,7 +132,7 @@ module DirectedEdge
             link_ids.clear
           end
 
-          find_by_sql(connection.sql_for_export).each do |record|
+          edgy_paginated_sql_each(connection.sql_for_export) do |record|
             export.call unless from_id == record.from_id || link_ids.empty?
             from_id = record.from_id
             link_ids.add(record.to_id)
@@ -147,6 +148,15 @@ module DirectedEdge
           end
         end
         exporter
+      end
+
+      def edgy_paginated_sql_each(query, &block)
+        page = 1
+        begin
+          results = paginate_by_sql(query, :page => page)
+          results.each { |r| block.call(r) }
+          page += 1
+        end while !results.empty?
       end
 
       private
@@ -229,7 +239,7 @@ module DirectedEdge
         where << "#{bridge.klass.table_name}.#{bridge.to_column}" unless bridge == last
       end
 
-      "select #{what} from #{from} where #{where} order by from_id;"
+      "select #{what} from #{from} where #{where} order by from_id"
     end
   end
 end
