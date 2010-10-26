@@ -5,11 +5,6 @@ require 'will_paginate'
 
 module DirectedEdge
   module Edgy
-    class Configuration
-      include Singleton
-      attr_accessor :user, :password
-    end
-
     class << self
       attr_accessor :database, :models
     end
@@ -24,6 +19,8 @@ module DirectedEdge
     def self.included(base)
       base.send :include, Utilities
       base.send :extend, ClassMethods
+      base.send :alias_method, :pre_edgy_save, :save
+      base.alias_method_chain :save, :edgy
     end
 
     def self.export
@@ -43,6 +40,10 @@ module DirectedEdge
       empty = "#{Rails.root}/tmp/edgy_empty.xml"
       DirectedEdge::Exporter.new(empty).finish unless File.exists? empty
       Edgy.database.import(empty)
+    end
+
+    def save_with_edgy(*args)
+      save_without_edgy(*args)
     end
 
     def edgy_related(options = {})
@@ -79,6 +80,11 @@ module DirectedEdge
 
     def edgy_record(item_id)
       edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
+    end
+
+    class Configuration
+      include Singleton
+      attr_accessor :user, :password
     end
 
     module Utilities
