@@ -21,6 +21,7 @@ module DirectedEdge
       base.send :extend, ClassMethods
       base.send :alias_method, :pre_edgy_save, :save
       base.alias_method_chain :save, :edgy
+      base.allow_concurrency = true
     end
 
     def self.export
@@ -47,21 +48,25 @@ module DirectedEdge
     end
 
     def edgy_related(options = {})
-      item_type = self.class.name.underscore
-      tags = options.delete(:tags) || Set.new([ item_type ])
-      item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
-      edgy_records(item.related(tags, options))
+      Future.new do
+        item_type = self.class.name.underscore
+        tags = options.delete(:tags) || Set.new([ item_type ])
+        item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
+        edgy_records(item.related(tags, options))
+      end
     end
 
     def edgy_recommended(options = {})
-      item_type = self.class.name.underscore
-      tags = options.delete(:tags)
-      unless tags
-        tags = Set.new
-        self.class.edgy_routes.each { |name, c| tags.add(c.to_class.name.underscore) }
+      Future.new do
+        item_type = self.class.name.underscore
+        tags = options.delete(:tags)
+        unless tags
+          tags = Set.new
+          self.class.edgy_routes.each { |name, c| tags.add(c.to_class.name.underscore) }
+        end
+        item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
+        edgy_records(item.recommended(tags, options))
       end
-      item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
-      edgy_records(item.recommended(tags, options))
     end
 
     private
@@ -254,8 +259,8 @@ module DirectedEdge
       @future = Thread.new(&finalize)
     end
 
-    def method_missing(method, *args)
-      data.send(method, *args)
+    def method_missing(method, *args, &block)
+      data.send(method, *args, &block)
     end
 
     def to_s
