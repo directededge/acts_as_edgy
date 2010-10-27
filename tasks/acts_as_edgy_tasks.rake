@@ -19,8 +19,11 @@ namespace :edgy do
   end
 
   desc "Sets the credentials for your Directed Edge account."
-  task :configure, :user, :password, :needs => :environment do |t, args|
+  task :configure, :username, :password, :needs => :environment do |t, args|
     path = "#{Rails.root}/config/initializers/edgy.rb"
+
+    user = args[:username]
+    password = args[:password]
 
     if File.exists?(path) && !(args[:user] && args[:password])
       puts "Overwrite existing configuration? [Y/n]"
@@ -28,20 +31,20 @@ namespace :edgy do
       exit unless overwrite.empty? || overwrite[0, 1].upcase == 'Y'
     end
 
-    unless args[:user]
+    unless user
       puts "Directed Edge user name:"
-      args[:user] = STDIN.gets.chomp
+      user = STDIN.gets.chomp
     end
 
-    unless args[:password]
+    unless password
       puts "Directed Edge password:"
-      args[:password] = STDIN.gets.chomp
+      password = STDIN.gets.chomp
     end
 
     file = File.new(path, 'w')
     file.write("DirectedEdge::Edgy.configure do |config|\n")
-    file.write("  config.user = '#{args[:user]}'\n")
-    file.write("  config.password = '#{args[:password]}'\n")
+    file.write("  config.user = '#{user}'\n")
+    file.write("  config.password = '#{password}'\n")
     file.write("end\n");
     file.close
   end
