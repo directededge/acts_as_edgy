@@ -58,7 +58,7 @@ module DirectedEdge
       tags = options.delete(:tags)
       unless tags
         tags = Set.new
-        self.class.edgy_connections.each { |c| tags.add(c.to_class.name.underscore) }
+        self.class.edgy_routes.each { |name, c| tags.add(c.to_class.name.underscore) }
       end
       item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
       edgy_records(item.recommended(tags, options))
@@ -99,7 +99,7 @@ module DirectedEdge
 
     module ClassMethods
       include Utilities
-      attr_reader :edgy_connections
+      attr_reader :edgy_routes
 
       def acts_as_edgy(name, *bridges)
         @edgy_routes ||= {}
@@ -261,7 +261,7 @@ module DirectedEdge
     def to_s
       data.to_s
     end
-    
+
     private
 
     def data
