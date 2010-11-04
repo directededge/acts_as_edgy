@@ -228,7 +228,7 @@ module DirectedEdge
       end
 
       where << " = #{@to_class.table_name}.id"
-      "select #{what} from #{from} where #{where};"
+      "select #{what} from #{from} where #{where}"
     end
 
     def sql_for_export
