@@ -196,6 +196,11 @@ module DirectedEdge
     end
   end
 
+  # By default strings of classes can be used and bridges will be built
+  # automatically between them based on the standard foreign keys.  However, in
+  # cases where non-standard foreign keys are used, a Bridge may be explicitly
+  # created.
+
   class Bridge
     attr_reader :klass, :from_column, :to_column
     def initialize(klass, from_column, to_column)
