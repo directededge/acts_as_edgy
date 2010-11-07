@@ -44,6 +44,21 @@ module DirectedEdge
     end
 
     def save_with_edgy(*args)
+      Future.new do
+        self.class.edgy_triggers.each do |trigger|
+
+          ### TODO: This should use the ID from the bridge rather than just
+          ### assuming foreign_key is the right one.
+
+          trigger_id = send(trigger.name.foreign_key)
+          trigger.edgy_routes.each do |name, connection|
+            ids = Set.new
+            self.class.edgy_paginated_sql_each(connection.sql_for_single(trigger_id)) do |record|
+              ids.add(record.id)
+            end
+          end if trigger_id
+        end if self.class.edgy_triggers
+      end
       save_without_edgy(*args)
     end
 
@@ -105,11 +120,17 @@ module DirectedEdge
     module ClassMethods
       include Utilities
       attr_reader :edgy_routes
+      attr_accessor :edgy_triggers
 
       def acts_as_edgy(name, *bridges)
-        @edgy_routes ||= {}
         Edgy.models ||= Set.new
         Edgy.models.add(self)
+
+        trigger_from = bridges.first.is_a?(Bridge) ? bridges.first.klass : bridges.first
+        trigger_from.edgy_triggers ||= Set.new
+        trigger_from.edgy_triggers.add(self)
+
+        @edgy_routes ||= {}
 
         if bridges.first.is_a? Bridge
           to_class =
