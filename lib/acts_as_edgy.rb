@@ -148,17 +148,14 @@ module DirectedEdge
         raise "Model not initialized with acts_as_edgy" unless @edgy_routes
 
         @edgy_routes.each do |name, connection|
-          from_type = connection.from_class.name.underscore
-          to_type = connection.to_class.name.underscore
-
           from_id = nil
           link_ids = Set.new
           to_ids = Set.new
 
           export = lambda do
-            item = DirectedEdge::Item.new(exporter.database, "#{from_type}_#{from_id}")
-            item.add_tag(from_type)
-            link_ids.each { |link| item.link_to("#{to_type}_#{link}", 0, name) }
+            item = DirectedEdge::Item.new(exporter.database, "#{connection.from_type}_#{from_id}")
+            item.add_tag(connection.from_type)
+            link_ids.each { |link_id| item.link_to("#{connection.to_type}_#{link_id}", 0, name) }
             exporter.export(item)
             link_ids.clear
           end
@@ -173,8 +170,8 @@ module DirectedEdge
           export.call unless link_ids.empty?
 
           to_ids.each do |id|
-            item = DirectedEdge::Item.new(exporter.database, "#{to_type}_#{id}")
-            item.add_tag(to_type)
+            item = DirectedEdge::Item.new(exporter.database, "#{connection.to_type}_#{id}")
+            item.add_tag(connection.to_type)
             exporter.export(item)
           end
         end
@@ -276,6 +273,14 @@ module DirectedEdge
       end
 
       "select #{what} from #{from} where #{where} order by from_id"
+    end
+
+    def from_type
+      from_class.name.underscore
+    end
+
+    def to_type
+      to_class.name.underscore
     end
   end
 
