@@ -21,7 +21,6 @@ module DirectedEdge
       base.send :extend, ClassMethods
       base.send :alias_method, :pre_edgy_save, :save
       base.alias_method_chain :save, :edgy
-      base.allow_concurrency = true
     end
 
     def self.export
