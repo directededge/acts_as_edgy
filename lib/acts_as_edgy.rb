@@ -19,8 +19,8 @@ module DirectedEdge
     def self.included(base)
       base.send :include, Utilities
       base.send :extend, ClassMethods
-      base.send :alias_method, :pre_edgy_save, :save
       base.alias_method_chain :save, :edgy
+      base.alias_method_chain :destroy, :edgy
     end
 
     def self.export
@@ -31,8 +31,6 @@ module DirectedEdge
       exporter = DirectedEdge::Exporter.new(file)
       @models.each { |m| m.edgy_export(exporter) }
       exporter.finish
-
-      self.clear
       Edgy.database.import(file)
     end
 
@@ -54,6 +52,11 @@ module DirectedEdge
         end if self.class.edgy_triggers
       end
       save_without_edgy(*args)
+    end
+
+    def destroy_with_edgy
+      Future.new { edgy_item.destroy } if self.class.edgy_modeled
+      destroy_without_edgy
     end
 
     def edgy_related(options = {})
@@ -142,11 +145,14 @@ module DirectedEdge
     module ClassMethods
       include Utilities
       attr_reader :edgy_routes
-      attr_accessor :edgy_triggers
+      attr_accessor :edgy_triggers, :edgy_modeled
 
       def acts_as_edgy(name, *bridges)
         Edgy.models ||= Set.new
         Edgy.models.add(self)
+
+        @edgy_modeled = true
+        bridges.last.edgy_modeled = true
 
         trigger_from = bridges.first.is_a?(Bridge) ? bridges.first.klass : bridges.first
         trigger_from.edgy_triggers ||= Set.new
