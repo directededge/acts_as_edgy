@@ -50,12 +50,7 @@ module DirectedEdge
           ### assuming foreign_key is the right one.
 
           trigger_id = send(trigger.name.foreign_key)
-          trigger.edgy_routes.each do |name, connection|
-            ids = Set.new
-            self.class.edgy_paginated_sql_each(connection.sql_for_single(trigger_id)) do |record|
-              ids.add(record.id)
-            end
-          end if trigger_id
+          trigger.find(trigger_id).edgy_export if trigger_id
         end if self.class.edgy_triggers
       end
       save_without_edgy(*args)
@@ -63,24 +58,39 @@ module DirectedEdge
 
     def edgy_related(options = {})
       Future.new do
-        item_type = self.class.name.underscore
-        tags = options.delete(:tags) || Set.new([ item_type ])
-        item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
-        edgy_records(item.related(tags, options))
+        tags = options.delete(:tags) || Set.new([ edgy_type ])
+        edgy_records(edgy_item.related(tags, options))
       end
     end
 
     def edgy_recommended(options = {})
       Future.new do
-        item_type = self.class.name.underscore
         tags = options.delete(:tags)
         unless tags
           tags = Set.new
-          self.class.edgy_routes.each { |name, c| tags.add(c.to_class.name.underscore) }
+          self.class.edgy_routes.each { |name, c| tags.add(c.to_class.edgy_type) }
         end
-        item = DirectedEdge::Item.new(Edgy.database, "#{item_type}_#{id}")
-        edgy_records(item.recommended(tags, options))
+        edgy_records(edgy_item.recommended(tags, options))
       end
+    end
+
+    def edgy_export
+      item = edgy_item
+      item.add_tag(edgy_type)
+      exporter = DirectedEdge::Exporter.new(Edgy.database)
+
+      self.class.edgy_routes.each do |name, connection|
+        self.class.edgy_paginated_sql_each(connection.sql_for_single(id)) do |record|
+          target_id = "#{connection.to_type}_#{record.id}"
+          item.link_to(target_id, 0, name)
+          target = DirectedEdge::Item.new(exporter.database, target_id)
+          target.add_tag(connection.to_type)
+          exporter.export(target)
+        end
+      end
+
+      exporter.finish
+      item.save(:overwrite => true)
     end
 
     private
@@ -101,16 +111,29 @@ module DirectedEdge
       edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
     end
 
+    def edgy_item
+      DirectedEdge::Item.new(Edgy.database, "#{edgy_type}_#{id}")
+    end
+
     class Configuration
       include Singleton
       attr_accessor :user, :password
     end
 
+    # The utilities are small helpers that are shared between the ClassMethods
+    # module and the main Edgy module.
+
     module Utilities
+      def edgy_type
+        self.is_a?(ActiveRecord::Base) ? self.class.name.underscore : name.underscore
+      end
+
       private
+
       def edgy_name(item_id)
         item_id.sub(/_.*/, '')
       end
+
       def edgy_id(item_id)
         item_id.sub(/.*_/, '')
       end
@@ -276,11 +299,11 @@ module DirectedEdge
     end
 
     def from_type
-      from_class.name.underscore
+      from_class.edgy_type
     end
 
     def to_type
-      to_class.name.underscore
+      to_class.edgy_type
     end
   end
 
