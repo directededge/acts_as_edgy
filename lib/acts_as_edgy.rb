@@ -50,12 +50,14 @@ module DirectedEdge
           trigger_id = send(trigger.name.foreign_key)
           trigger.find(trigger_id).edgy_export if trigger_id
         end if self.class.edgy_triggers
-      end
+      end if Configuration.instance.send_updates
       save_without_edgy(*args)
     end
 
     def destroy_with_edgy
-      Future.new { edgy_item.destroy } if self.class.edgy_modeled
+      if Configuration.instance.send_updates && self.class.edgy_modeled
+        Future.new { edgy_item.destroy }
+      end
       destroy_without_edgy
     end
 
@@ -120,7 +122,10 @@ module DirectedEdge
 
     class Configuration
       include Singleton
-      attr_accessor :user, :password
+      attr_accessor :user, :password, :send_updates
+      def initialize
+        @send_updates = true
+      end
     end
 
     # The utilities are small helpers that are shared between the ClassMethods
