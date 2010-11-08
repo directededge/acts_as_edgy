@@ -42,14 +42,16 @@ module DirectedEdge
 
     def save_with_edgy(*args)
       Future.new do
-        self.class.edgy_triggers.each do |trigger|
+        if self.class.edgy_triggers
+          self.class.edgy_triggers.each do |trigger|
 
-          ### TODO: This should use the ID from the bridge rather than just
-          ### assuming foreign_key is the right one.
+            ### TODO: This should use the ID from the bridge rather than just
+            ### assuming foreign_key is the right one.
 
-          trigger_id = send(trigger.name.foreign_key)
-          trigger.find(trigger_id).edgy_export if trigger_id
-        end if self.class.edgy_triggers
+            trigger_id = send(trigger.name.foreign_key)
+            trigger.find(trigger_id).edgy_export if trigger_id
+          end
+        end
       end if Configuration.instance.send_updates
       save_without_edgy(*args)
     end
@@ -82,16 +84,17 @@ module DirectedEdge
     def edgy_export
       item = edgy_item
       item.add_tag(edgy_type)
+
+      # Create an exporter so that we make sure that all linked items exist.
+
       exporter = DirectedEdge::Exporter.new(Edgy.database)
 
-      self.class.edgy_routes.each do |name, connection|
-        self.class.edgy_paginated_sql_each(connection.sql_for_single(id)) do |record|
-          target_id = "#{connection.to_type}_#{record.id}"
-          item.link_to(target_id, 0, name)
-          target = DirectedEdge::Item.new(exporter.database, target_id)
-          target.add_tag(connection.to_type)
-          exporter.export(target)
-        end
+      self.class.edgy_paginated_sql_each(self.class.edgy_sql_for_export(id)) do |record|
+        target_id = "#{record.to_type}_#{record.to_id}"
+        item.link_to(target_id, 0, record.link_type)
+        target = DirectedEdge::Item.new(exporter.database, target_id)
+        target.add_tag(record.to_type)
+        exporter.export(target)
       end
 
       exporter.finish
@@ -133,7 +136,13 @@ module DirectedEdge
 
     module Utilities
       def edgy_type
-        self.is_a?(ActiveRecord::Base) ? self.class.name.underscore : name.underscore
+        is_a?(ActiveRecord::Base) ? self.class.name.underscore : name.underscore
+      end
+
+      def edgy_sql_for_export(for_id = nil)
+        instance = is_a?(ActiveRecord::Base) ? self.class : self
+        instance.edgy_routes.map { |c| c[1].sql_for_export(c[0], for_id) }.join(' union ') +
+          ' order by from_id'
       end
 
       private
@@ -153,11 +162,14 @@ module DirectedEdge
       attr_accessor :edgy_triggers, :edgy_modeled
 
       def acts_as_edgy(name, *bridges)
+        target = bridges.last
+
         Edgy.models ||= Set.new
         Edgy.models.add(self)
+        Edgy.models.add(target)
 
         @edgy_modeled = true
-        bridges.last.edgy_modeled = true
+        target.edgy_modeled = true
 
         trigger_from = bridges.first.is_a?(Bridge) ? bridges.first.klass : bridges.first
         trigger_from.edgy_triggers ||= Set.new
@@ -172,6 +184,7 @@ module DirectedEdge
             else
               edgy_name(bridges.last.to_column.to_s).classify.constantize
             end
+          ### Should we auto-create the first bridge?
           @edgy_routes[name] = Connection.new(self, to_class, *bridges)
         else
           @edgy_routes[name] = edgy_build_connection(self, *bridges)
@@ -179,37 +192,25 @@ module DirectedEdge
       end
 
       def edgy_export(exporter)
-        raise "Model not initialized with acts_as_edgy" unless @edgy_routes
-
-        @edgy_routes.each do |name, connection|
-          from_id = nil
-          link_ids = Set.new
-          to_ids = Set.new
-
-          export = lambda do
-            item = DirectedEdge::Item.new(exporter.database, "#{connection.from_type}_#{from_id}")
-            item.add_tag(connection.from_type)
-            link_ids.each { |link_id| item.link_to("#{connection.to_type}_#{link_id}", 0, name) }
-            exporter.export(item)
-            link_ids.clear
+        if @edgy_routes
+          item = nil
+          edgy_paginated_sql_each(edgy_sql_for_export) do |record|
+            item_id = "#{record.from_type}_#{record.from_id}"
+            unless item == item_id
+              exporter.export(item) if item
+              item = DirectedEdge::Item.new(exporter.database, item_id)
+              item.add_tag(record.from_type)
+            end
+            item.link_to("#{record.to_type}_#{record.to_id}", 0, record.link_type) if record.to_id
           end
-
-          edgy_paginated_sql_each(connection.sql_for_export) do |record|
-            export.call unless from_id == record.from_id || link_ids.empty?
-            from_id = record.from_id
-            link_ids.add(record.to_id)
-            to_ids.add(record.to_id)
-          end
-
-          export.call unless link_ids.empty?
-
-          to_ids.each do |id|
-            item = DirectedEdge::Item.new(exporter.database, "#{connection.to_type}_#{id}")
-            item.add_tag(connection.to_type)
+          exporter.export(item) if item
+        else
+          find_each do |record|
+            item = DirectedEdge::Item.new(exporter.database, "#{edgy_type}_#{record.id}")
+            item.add_tag(edgy_type)
             exporter.export(item)
           end
         end
-        exporter
       end
 
       def edgy_paginated_sql_each(query, &block)
@@ -221,8 +222,6 @@ module DirectedEdge
         end while !results.empty?
       end
 
-      private
-
       def edgy_find_method(in_class, referring_to)
         if in_class.column_names.include? referring_to.name.foreign_key
           referring_to.name.foreign_key
@@ -231,10 +230,12 @@ module DirectedEdge
         end
       end
 
+      private
+
       def edgy_build_connection(*classes)
         raise "There must be at least three classes in an edgy path." if classes.size < 3
         bridges = []
-        first = previous = classes.shift
+        first = previous = classes.first
         while classes.size > 1
           current = classes.shift
           bridges.push(Bridge.new(current,
@@ -272,41 +273,29 @@ module DirectedEdge
       @bridges = bridges
     end
 
-    def sql_for_single(from_id)
-      what = "#{@to_class.table_name}.id"
-      from = "#{@to_class.table_name}"
-      where = from_id.to_s
+    def sql_for_export(link_type, for_id = nil)
+      to_column = "#{@bridges.last.klass.table_name}.#{@bridges.last.to_column}"
 
-      @bridges.each do |bridge|
-        from << ", #{bridge.klass.table_name}"
-        where << " = #{bridge.klass.table_name}.#{bridge.from_column}"
-        where << " and #{bridge.klass.table_name}.#{bridge.to_column}"
+      what = "#{from_class.table_name}.id as from_id, "
+      what << "#{quote(from_type)} as from_type, "
+      what << "#{to_column} as to_id, "
+      what << conditional(to_column, to_type, 'to_type') << ', '
+      what << conditional(to_column, link_type, 'link_type')
+
+      from = "#{from_class.table_name} "
+      where = "#{from_class.table_name}.id " + (for_id ? "= #{for_id}" : "is not null")
+
+      bridges = @bridges.clone
+      previous = bridges.shift
+
+      bridges.each do |bridge|
+        from << "left outer join #{bridge.klass.table_name} "
+        from << "on #{previous.klass.table_name}.#{previous.to_column} = "
+        from << "#{bridge.klass.table_name}.#{bridge.from_column} "
+        previous = bridge
       end
 
-      where << " = #{@to_class.table_name}.id"
       "select #{what} from #{from} where #{where}"
-    end
-
-    def sql_for_export
-      first = @bridges.first
-      last = @bridges.last
-
-      from_column = "#{first.klass.table_name}.#{first.from_column}"
-      to_column = "#{last.klass.table_name}.#{last.to_column}"
-
-      what = "#{from_column} as from_id, #{to_column} as to_id"
-      from = ""
-      where = "#{from_column} is not null and #{to_column} is not null and "
-
-      @bridges.each do |bridge|
-        from << ", " unless bridge == first
-        from << bridge.klass.table_name
-        where << " = #{bridge.klass.table_name}.#{bridge.from_column}" unless bridge == first
-        where << " and " unless (bridge == first || bridge == last)
-        where << "#{bridge.klass.table_name}.#{bridge.to_column}" unless bridge == last
-      end
-
-      "select #{what} from #{from} where #{where} order by from_id"
     end
 
     def from_type
@@ -315,6 +304,16 @@ module DirectedEdge
 
     def to_type
       to_class.edgy_type
+    end
+
+    private
+
+    def conditional(test, value, as)
+      "case when #{test} is not null then #{quote(value)} end as #{as}"
+    end
+
+    def quote(value)
+      @bridges.first.klass.quote_value(value.to_s)
     end
   end
 
