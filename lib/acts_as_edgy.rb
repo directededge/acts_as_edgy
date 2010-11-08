@@ -309,7 +309,13 @@ module DirectedEdge
 
   class Future
     def initialize(&finalize)
-      @future = Thread.new(&finalize)
+      @future = Thread.new do
+        begin
+          finalize.call
+        rescue => ex
+          warn "Exception in background thread: #{ex}"
+        end
+      end
     end
 
     def method_missing(method, *args, &block)
