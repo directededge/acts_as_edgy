@@ -184,7 +184,9 @@ module DirectedEdge
             else
               edgy_name(bridges.last.to_column.to_s).classify.constantize
             end
-          ### Should we auto-create the first bridge?
+          if bridges.first.klass != self
+            bridges.insert(0, Bridge.new(self, 'id', edgy_find_method(self, bridges.first.klass)))
+          end
           @edgy_routes[name] = Connection.new(self, to_class, *bridges)
         else
           @edgy_routes[name] = edgy_build_connection(self, *bridges)
