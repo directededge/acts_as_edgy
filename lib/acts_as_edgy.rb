@@ -44,12 +44,16 @@ module DirectedEdge
       Future.new do
         if self.class.edgy_triggers
           self.class.edgy_triggers.each do |trigger|
-
-            ### TODO: This should use the ID from the bridge rather than just
-            ### assuming foreign_key is the right one.
-
-            trigger_id = send(trigger.name.foreign_key)
-            trigger.find(trigger_id).edgy_export if trigger_id
+            updated = Set.new
+            trigger.edgy_routes.each do |name, connection|
+              bridge = connection.bridges[1]
+              if bridge.klass == self.class
+                conditions = { bridge.to_column.to_sym => send(bridge.from_column) }
+                trigger.find_each(:conditions => conditions) do |record|
+                  record.edgy_export if updated.add?(record.id)
+                end
+              end
+            end
           end
         end
       end if Configuration.instance.send_updates
@@ -267,7 +271,7 @@ module DirectedEdge
   private
 
   class Connection
-    attr_accessor :from_class, :to_class
+    attr_accessor :from_class, :to_class, :bridges
 
     def initialize(from_class, to_class, *bridges)
       @from_class = from_class
