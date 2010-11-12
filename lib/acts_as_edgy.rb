@@ -86,7 +86,7 @@ module DirectedEdge
     end
 
     def edgy_export
-      return unless self.class.edgy_modeled
+      return unless self.class.edgy_modeled == true
 
       item = edgy_item
       item.add_tag(edgy_type)
@@ -200,7 +200,10 @@ module DirectedEdge
         end
       end
 
-      def edgy_export(exporter)
+      def edgy_export(exporter = nil)
+        return unless @edgy_modeled == true
+        local_exporter = exporter.nil?
+        exporter ||= DirectedEdge::Exporter.new(Edgy.database)
         if @edgy_routes
           item = nil
           edgy_paginated_sql_each(edgy_sql_for_export) do |record|
@@ -220,6 +223,7 @@ module DirectedEdge
             exporter.export(item)
           end
         end
+        exporter.finish if local_exporter
       end
 
       def edgy_paginated_sql_each(query, &block)
