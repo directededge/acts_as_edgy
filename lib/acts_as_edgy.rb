@@ -86,22 +86,25 @@ module DirectedEdge
     end
 
     def edgy_export
+      return unless self.class.edgy_modeled
+
       item = edgy_item
       item.add_tag(edgy_type)
 
-      # Create an exporter so that we make sure that all linked items exist.
+      if self.class.edgy_routes
+        # Create an exporter so that we make sure that all linked items exist.
+        exporter = DirectedEdge::Exporter.new(Edgy.database)
 
-      exporter = DirectedEdge::Exporter.new(Edgy.database)
+        self.class.edgy_paginated_sql_each(self.class.edgy_sql_for_export(id)) do |record|
+          target_id = "#{record.to_type}_#{record.to_id}"
+          item.link_to(target_id, 0, record.link_type)
+          target = DirectedEdge::Item.new(exporter.database, target_id)
+          target.add_tag(record.to_type)
+          exporter.export(target)
+        end
 
-      self.class.edgy_paginated_sql_each(self.class.edgy_sql_for_export(id)) do |record|
-        target_id = "#{record.to_type}_#{record.to_id}"
-        item.link_to(target_id, 0, record.link_type)
-        target = DirectedEdge::Item.new(exporter.database, target_id)
-        target.add_tag(record.to_type)
-        exporter.export(target)
+        exporter.finish
       end
-
-      exporter.finish
       item.save(:overwrite => true)
     end
 
