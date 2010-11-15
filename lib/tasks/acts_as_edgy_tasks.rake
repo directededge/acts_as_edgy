@@ -1,4 +1,4 @@
-require File.join(File.dirname(__FILE__), '../lib/acts_as_edgy')
+require File.join(File.dirname(__FILE__), '../acts_as_edgy')
 
 namespace :edgy do
   desc "Imports your site's data to your Directed Edge account."
