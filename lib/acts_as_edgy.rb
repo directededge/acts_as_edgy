@@ -332,6 +332,10 @@ module DirectedEdge
 
   class Future
     def initialize(postprocessor = nil, &finalize)
+      if ENV['EDGY_SYNCHRONOUS']
+        @data = postprocessor ? postprocessor.call(finalize.call) : finalize.call
+        return
+      end
       @postprocessor = postprocessor
       @future = Thread.new do
         begin
