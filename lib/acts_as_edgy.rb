@@ -111,7 +111,7 @@ module DirectedEdge
     private
 
     def edgy_records(ids)
-      return [] if ids.empty?
+      return [] if ids.blank?
       same_names = true
       first_name = edgy_name(ids.first)
       record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
