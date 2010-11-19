@@ -110,22 +110,6 @@ module DirectedEdge
 
     private
 
-    def edgy_records(ids)
-      return [] if ids.blank?
-      same_names = true
-      first_name = edgy_name(ids.first)
-      record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
-      if same_names
-        first_name.classify.constantize.find(record_ids)
-      else
-        ids.map { |i| edgy_record(i) }
-      end
-    end
-
-    def edgy_record(item_id)
-      edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
-    end
-
     def edgy_item
       DirectedEdge::Item.new(Edgy.database, "#{edgy_type}_#{id}")
     end
@@ -160,6 +144,22 @@ module DirectedEdge
 
       def edgy_id(item_id)
         item_id.sub(/.*_/, '')
+      end
+
+      def edgy_records(ids)
+        return [] if ids.blank?
+        same_names = true
+        first_name = edgy_name(ids.first)
+        record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
+        if same_names
+          first_name.classify.constantize.find(record_ids)
+        else
+          ids.map { |i| edgy_record(i) }
+        end
+      end
+
+      def edgy_record(item_id)
+        edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
       end
     end
 
@@ -197,6 +197,21 @@ module DirectedEdge
           @edgy_routes[name] = Connection.new(self, to_class, *bridges)
         else
           @edgy_routes[name] = edgy_build_connection(self, *bridges)
+        end
+      end
+
+      def edgy_related(items, options = {})
+        Future.new(lambda { |v| edgy_records(v) }) do
+          items = [ items ] unless items.is_a? Enumerable
+          tags = options.delete(:tags) || Set.new([ edgy_type ])
+          group = items.map do |item|
+            if item.is_a? Integer
+              "#{edgy_type}_#{item}"
+            else
+              "#{item.edgy_type}_#{item.id}"
+            end
+          end
+          Edgy.database.group_related(group, tags, options)
         end
       end
 
