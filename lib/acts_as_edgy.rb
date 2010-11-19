@@ -68,20 +68,20 @@ module DirectedEdge
     end
 
     def edgy_related(options = {})
-      Future.new do
+      Future.new(lambda { |v| edgy_records(v) }) do
         tags = options.delete(:tags) || Set.new([ edgy_type ])
-        edgy_records(edgy_item.related(tags, options))
+        edgy_item.related(tags, options)
       end
     end
 
     def edgy_recommended(options = {})
-      Future.new do
+      Future.new(lambda { |v| edgy_records(v) }) do
         tags = options.delete(:tags)
         unless tags
           tags = Set.new
           self.class.edgy_routes.each { |name, c| tags.add(c.to_class.edgy_type) }
         end
-        edgy_records(edgy_item.recommended(tags, options))
+        edgy_item.recommended(tags, options)
       end
     end
 
@@ -331,7 +331,8 @@ module DirectedEdge
   end
 
   class Future
-    def initialize(&finalize)
+    def initialize(postprocessor = nil, &finalize)
+      @postprocessor = postprocessor
       @future = Thread.new do
         begin
           finalize.call
@@ -352,10 +353,9 @@ module DirectedEdge
     private
 
     def data
-      @data ||= @future.value
+      @data ||= @postprocessor ? @postprocessor.call(@future.value) : @future.value
     end
   end
-
 end
 
 ActiveRecord::Base.send :include, DirectedEdge::Edgy
