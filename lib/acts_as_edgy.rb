@@ -17,10 +17,12 @@ module DirectedEdge
     end
 
     def self.included(base)
-      base.send :include, Utilities
-      base.send :extend, ClassMethods
-      base.alias_method_chain :save, :edgy
-      base.alias_method_chain :destroy, :edgy
+      unless base.respond_to? :save_without_edgy
+        base.send :include, Utilities
+        base.send :extend, ClassMethods
+        base.alias_method_chain :save, :edgy
+        base.alias_method_chain :destroy, :edgy
+      end
     end
 
     def self.export
