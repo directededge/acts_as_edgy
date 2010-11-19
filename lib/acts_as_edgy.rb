@@ -24,8 +24,8 @@ module DirectedEdge
     end
 
     def self.export
-      throw "No acts_as_edgy models in use." if @models.blank?
-      throw "Database not set." unless Edgy.database
+      raise "No acts_as_edgy models in use." if @models.blank?
+      raise "Database not set." unless Edgy.database
 
       file = "#{Rails.root}/tmp/edgy_export.xml"
       exporter = DirectedEdge::Exporter.new(file)
