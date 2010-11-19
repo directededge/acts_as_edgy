@@ -17,12 +17,10 @@ module DirectedEdge
     end
 
     def self.included(base)
-      unless base.respond_to? :save_without_edgy
-        base.send :include, Utilities
-        base.send :extend, ClassMethods
-        base.alias_method_chain :save, :edgy
-        base.alias_method_chain :destroy, :edgy
-      end
+      base.send :include, Utilities
+      base.send :extend, ClassMethods
+      base.alias_method_chain :save, :edgy
+      base.alias_method_chain :destroy, :edgy
     end
 
     def self.export
@@ -360,4 +358,6 @@ module DirectedEdge
   end
 end
 
-ActiveRecord::Base.send :include, DirectedEdge::Edgy
+unless ActiveRecord::Base.include? DirectedEdge::Edgy
+  ActiveRecord::Base.send :include, DirectedEdge::Edgy
+end
