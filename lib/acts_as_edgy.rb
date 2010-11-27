@@ -1,6 +1,4 @@
 require 'directed_edge'
-require 'active_support'
-require 'active_record'
 require 'will_paginate'
 
 module DirectedEdge
@@ -27,7 +25,9 @@ module DirectedEdge
       raise "No acts_as_edgy models in use." if @models.blank?
       raise "Database not set." unless Edgy.database
 
-      file = "#{Rails.root}/tmp/edgy_export.xml"
+      tmp = "#{Rails.root}/tmp"
+      Dir.mkdir(tmp) unless File.directory?(tmp) 
+      file = "#{tmp}/edgy_export.xml"
       exporter = DirectedEdge::Exporter.new(file)
       @models.each { |m| m.edgy_export(exporter) }
       exporter.finish
@@ -68,14 +68,14 @@ module DirectedEdge
     end
 
     def edgy_related(options = {})
-      Future.new(lambda { |v| edgy_records(v) }) do
+      Future.new(lambda { |v| edgy_records(v, options[:find_options]) }) do
         tags = options.delete(:tags) || Set.new([ edgy_type ])
         edgy_item.related(tags, options)
       end
     end
 
     def edgy_recommended(options = {})
-      Future.new(lambda { |v| edgy_records(v) }) do
+      Future.new(lambda { |v| edgy_records(v, options[:find_options]) }) do
         tags = options.delete(:tags)
         unless tags
           tags = Set.new
@@ -146,20 +146,20 @@ module DirectedEdge
         item_id.sub(/.*_/, '')
       end
 
-      def edgy_records(ids)
+      def edgy_records(ids, find_options = {})
         return [] if ids.blank?
         same_names = true
         first_name = edgy_name(ids.first)
         record_ids = ids.map { |i| same_names = false if edgy_name(i) != first_name ; edgy_id(i) }
         if same_names
-          first_name.classify.constantize.find(record_ids)
+          first_name.classify.constantize.find(record_ids, find_options)
         else
-          ids.map { |i| edgy_record(i) }
+          ids.map { |i| edgy_record(i, find_options) }
         end
       end
 
-      def edgy_record(item_id)
-        edgy_name(item_id).classify.constantize.find(edgy_id(item_id))
+      def edgy_record(item_id, find_options = {})
+        edgy_name(item_id).classify.constantize.find(edgy_id(item_id), find_options)
       end
     end
 
