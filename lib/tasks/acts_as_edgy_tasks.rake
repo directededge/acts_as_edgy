@@ -1,5 +1,3 @@
-require File.join(File.dirname(__FILE__), '../acts_as_edgy')
-
 namespace :edgy do
   desc "Imports your site's data to your Directed Edge account."
   task :export, :needs => :environment do
